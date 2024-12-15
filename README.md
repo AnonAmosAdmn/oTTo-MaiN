@@ -1,2 +1,2 @@
 # oTTo-MaiN
-oTTo-MAIN.sh™️ by Aenon Amos Adin Al Amin
+oTTo-MaiN.sh™️ by Aenon Amos Adin Al Amin
