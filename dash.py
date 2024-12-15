@@ -272,16 +272,16 @@ class DashboardApp:
                 self.ai_output.see(tk.END)
         self.root.after(100, self.process_queue)
 
-def save_current_conversation(self):
-    user_query = self.ai_input.get().strip()
-    ai_response = self.ai_output.get("1.0", tk.END).strip()
-
-    if not user_query or not ai_response:
-        messagebox.showwarning("Warning", "Cannot save an empty conversation.")
-        return
-
-    self.log_conversation(user_query, ai_response)
-    messagebox.showinfo("Success", "Conversation saved successfully!")
+    def save_current_conversation(self):
+        user_query = self.ai_input.get().strip()
+        ai_response = self.ai_output.get("1.0", tk.END).strip()
+    
+        if not user_query or not ai_response:
+            messagebox.showwarning("Warning", "Cannot save an empty conversation.")
+            return
+    
+        self.log_conversation(user_query, ai_response)
+        messagebox.showinfo("Success", "Conversation saved successfully!")
 
 
     ### CLIENT PAGE ###
