@@ -28,7 +28,7 @@ class DashboardApp:
 
     ### DATABASE INITIALIZATION ###
     def init_database(self):
-        self.conn = sqlite3.connect("conversations.db")
+        self.conn = sqlite3.connect("conversations.db", check_same_thread=False)
         self.cursor = self.conn.cursor()
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS conversations (
@@ -39,6 +39,7 @@ class DashboardApp:
             )
         ''')
         self.conn.commit()
+
 
     def log_conversation(self, user_query, ai_response):
         self.cursor.execute(
@@ -127,8 +128,22 @@ class DashboardApp:
         self.ai_submit = ttk.Button(self.ai_input_frame, text="Submit", command=self.submit_ai_query)
         self.ai_submit.pack(side="left", padx=5)
 
+        self.save_conversation_button = ttk.Button(self.ai_frame, text="Save Conversation", command=self.save_current_conversation)
+        self.save_conversation_button.pack(pady=10)
+
         self.refresh_models()  # Fetch models at startup
         self.model_combobox.set("mistral")  # Set default model to "mistral"
+
+    def save_current_conversation(self):
+        user_query = self.ai_input.get()
+        ai_response = self.ai_output.get("1.0", tk.END).strip()
+
+        if not user_query or not ai_response:
+            messagebox.showwarning("Warning", "Cannot save an empty conversation.")
+            return
+
+        self.log_conversation(user_query, ai_response)
+        messagebox.showinfo("Success", "Conversation saved successfully!")
 
     def conversations_page(self):
         self.clear_frame()
@@ -228,13 +243,16 @@ class DashboardApp:
         try:
             result = subprocess.run(command, capture_output=True, text=True)
             if result.returncode == 0:
+                response = result.stdout.strip()
                 if success_message:
                     self.queue.put(('output', success_message))
                 else:
-                    response = result.stdout
                     self.queue.put(('output', response))
-                    if "run" in command:
-                        self.log_conversation(command[-1], response)  # Log user query and AI response
+                
+                if "run" in command:  # Ensure this only runs for AI queries
+                    user_query = command[-1]  # The last element is the user query
+                    self.log_conversation(user_query, response)  # Log the conversation
+
             else:
                 self.queue.put(('error', f"Error: {result.stderr}"))
         except Exception as e:
@@ -244,7 +262,7 @@ class DashboardApp:
         while not self.queue.empty():
             message_type, message = self.queue.get()
             if message_type == 'output':
-                self.ai_output.insert(tk.END, message)
+                self.ai_output.insert(tk.END, message + "\n")
                 self.ai_output.see(tk.END)
             elif message_type == 'error':
                 messagebox.showerror("Error", message)
@@ -253,6 +271,17 @@ class DashboardApp:
                 self.ai_output.insert(tk.END, "Models refreshed.\n")
                 self.ai_output.see(tk.END)
         self.root.after(100, self.process_queue)
+
+def save_current_conversation(self):
+    user_query = self.ai_input.get().strip()
+    ai_response = self.ai_output.get("1.0", tk.END).strip()
+
+    if not user_query or not ai_response:
+        messagebox.showwarning("Warning", "Cannot save an empty conversation.")
+        return
+
+    self.log_conversation(user_query, ai_response)
+    messagebox.showinfo("Success", "Conversation saved successfully!")
 
 
     ### CLIENT PAGE ###
