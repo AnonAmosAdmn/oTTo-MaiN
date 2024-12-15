@@ -20,16 +20,43 @@ class DashboardApp:
         self.root.geometry("1200x950")
 
         self.queue = queue.Queue()
+        self.init_database()
         self.create_menu()
         self.create_main_frame()
         self.otto_page()
         self.root.after(100, self.process_queue)
+
+    ### DATABASE INITIALIZATION ###
+    def init_database(self):
+        self.conn = sqlite3.connect("conversations.db")
+        self.cursor = self.conn.cursor()
+        self.cursor.execute('''
+            CREATE TABLE IF NOT EXISTS conversations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                user_query TEXT,
+                ai_response TEXT
+            )
+        ''')
+        self.conn.commit()
+
+    def log_conversation(self, user_query, ai_response):
+        self.cursor.execute(
+            "INSERT INTO conversations (user_query, ai_response) VALUES (?, ?)",
+            (user_query, ai_response)
+        )
+        self.conn.commit()
+
+    def get_all_conversations(self):
+        self.cursor.execute("SELECT id, timestamp, user_query FROM conversations")
+        return self.cursor.fetchall()
 
     ### MAIN LAYOUT ###
     def create_menu(self):
         menubar = tk.Menu(self.root)
         menubar.add_command(label="OTTO-DASH", command=self.otto_page)
         menubar.add_command(label="Ai-Page", command=self.ai_page)
+        menubar.add_command(label="Conversations", command=self.conversations_page)
         menubar.add_command(label="Exit", command=self.root.quit)
         self.root.config(menu=menubar)
 
@@ -103,6 +130,41 @@ class DashboardApp:
         self.refresh_models()  # Fetch models at startup
         self.model_combobox.set("mistral")  # Set default model to "mistral"
 
+    def conversations_page(self):
+        self.clear_frame()
+
+        ttk.Label(self.main_frame, text="Previous Conversations", font=("Arial", 16)).pack(pady=10)
+
+        self.conversation_listbox = tk.Listbox(self.main_frame, height=20)
+        self.conversation_listbox.pack(fill="both", expand=True, padx=10, pady=10)
+
+        self.load_conversations()
+
+        self.resume_button = ttk.Button(self.main_frame, text="Resume Conversation", command=self.resume_conversation)
+        self.resume_button.pack(pady=10)
+
+    def load_conversations(self):
+        self.conversation_listbox.delete(0, tk.END)
+        conversations = self.get_all_conversations()
+        for convo in conversations:
+            self.conversation_listbox.insert(tk.END, f"{convo[0]} | {convo[1]} | {convo[2]}")
+
+    def resume_conversation(self):
+        selected = self.conversation_listbox.curselection()
+        if not selected:
+            messagebox.showwarning("Warning", "Please select a conversation to resume.")
+            return
+
+        conversation_id = int(self.conversation_listbox.get(selected[0]).split('|')[0].strip())
+        self.cursor.execute("SELECT user_query, ai_response FROM conversations WHERE id = ?", (conversation_id,))
+        convo = self.cursor.fetchone()
+
+        if convo:
+            user_query, ai_response = convo
+            self.ai_page()
+            self.ai_output.insert(tk.END, f"Resumed Conversation:\nYou: {user_query}\nAI: {ai_response}\n")
+            self.ai_output.see(tk.END)
+
     def start_ollama(self):
         threading.Thread(target=self.run_subprocess, args=(["ollama", "serve"], "Ollama server started.\n")).start()
 
@@ -169,7 +231,10 @@ class DashboardApp:
                 if success_message:
                     self.queue.put(('output', success_message))
                 else:
-                    self.queue.put(('output', result.stdout))
+                    response = result.stdout
+                    self.queue.put(('output', response))
+                    if "run" in command:
+                        self.log_conversation(command[-1], response)  # Log user query and AI response
             else:
                 self.queue.put(('error', f"Error: {result.stderr}"))
         except Exception as e:
